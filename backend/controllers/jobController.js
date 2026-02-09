@@ -1,5 +1,6 @@
 const Job = require('../models/Job');
 const User = require('../models/User');
+const { fetchExternalJobs, fetchExternalJobById } = require('../services/externalJobs');
 
 // @desc    Create job post
 // @route   POST /api/jobs
@@ -31,12 +32,12 @@ exports.createJob = async (req, res, next) => {
   }
 };
 
-// @desc    Get all jobs (with filters)
+// @desc    Get all jobs (with filters) + External Jobs
 // @route   GET /api/jobs
 // @access  Public
 exports.getJobs = async (req, res, next) => {
   try {
-    const { search, location, jobType, page = 1, limit = 10 } = req.query;
+    const { search, location, jobType, page = 1, limit = 10, includeExternal = 'true' } = req.query;
 
     const query = { isActive: true };
 
@@ -57,33 +58,69 @@ exports.getJobs = async (req, res, next) => {
 
     const skip = (page - 1) * limit;
 
-    const jobs = await Job.find(query)
+    // Fetch internal jobs from MongoDB
+    const internalJobs = await Job.find(query)
       .populate('recruiterId', 'name email company')
       .sort({ postedAt: -1 })
       .skip(skip)
       .limit(parseInt(limit));
 
-    const total = await Job.countDocuments(query);
+    const totalInternal = await Job.countDocuments(query);
+
+    // Fetch external jobs if enabled
+    let externalJobs = [];
+    if (includeExternal === 'true') {
+      try {
+        externalJobs = await fetchExternalJobs(search, location, 5);
+      } catch (error) {
+        console.error('Failed to fetch external jobs:', error.message);
+      }
+    }
+
+    // Merge internal and external jobs
+    const allJobs = [...internalJobs, ...externalJobs];
 
     res.status(200).json({
       success: true,
-      count: jobs.length,
-      total,
-      totalPages: Math.ceil(total / limit),
+      count: allJobs.length,
+      total: totalInternal + externalJobs.length,
+      totalPages: Math.ceil(totalInternal / limit),
       currentPage: parseInt(page),
-      jobs
+      jobs: allJobs,
+      internal: internalJobs.length,
+      external: externalJobs.length
     });
   } catch (error) {
     next(error);
   }
 };
 
-// @desc    Get single job
+// @desc    Get single job (internal or external)
 // @route   GET /api/jobs/:id
 // @access  Public
 exports.getJob = async (req, res, next) => {
   try {
-    const job = await Job.findById(req.params.id).populate('recruiterId', 'name email company');
+    const jobId = req.params.id;
+
+    // Check if it's an external job
+    if (jobId.startsWith('external_')) {
+      const externalJob = await fetchExternalJobById(jobId);
+      
+      if (!externalJob) {
+        return res.status(404).json({
+          success: false,
+          message: 'External job not found'
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        job: externalJob
+      });
+    }
+
+    // Fetch internal job
+    const job = await Job.findById(jobId).populate('recruiterId', 'name email company');
 
     if (!job) {
       return res.status(404).json({

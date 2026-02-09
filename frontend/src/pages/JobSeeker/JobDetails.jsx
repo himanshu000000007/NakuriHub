@@ -58,6 +58,12 @@ const JobDetails = () => {
     }
   };
 
+  const handleExternalApply = () => {
+    if (job?.externalUrl) {
+      window.open(job.externalUrl, '_blank', 'noopener,noreferrer');
+    }
+  };
+
   if (loading) {
     return (
       <div className="max-w-4xl mx-auto px-4 py-8">
@@ -84,8 +90,29 @@ const JobDetails = () => {
       </button>
 
       <div className="card">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">{job.title}</h1>
-        <p className="text-xl text-gray-600 mb-4">{job.companyName}</p>
+        <div className="flex items-start justify-between mb-4">
+          <div className="flex-1">
+            <div className="flex items-center gap-3 mb-2">
+              <h1 className="text-3xl font-bold text-gray-900">{job.title}</h1>
+              {job.isExternal && (
+                <span className="px-3 py-1 bg-purple-100 text-purple-700 text-sm font-medium rounded">
+                  External Job
+                </span>
+              )}
+            </div>
+            <p className="text-xl text-gray-600 mb-2">{job.companyName}</p>
+            {job.isExternal && job.externalData?.publisher && (
+              <p className="text-sm text-gray-500">Posted via {job.externalData.publisher}</p>
+            )}
+          </div>
+          {job.isExternal && job.externalData?.employerLogo && (
+            <img 
+              src={job.externalData.employerLogo} 
+              alt={job.companyName}
+              className="w-20 h-20 object-contain rounded"
+            />
+          )}
+        </div>
 
         <div className="flex flex-wrap gap-2 mb-6">
           <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm">
@@ -97,9 +124,16 @@ const JobDetails = () => {
           <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm">
             📊 {job.experienceRequired}
           </span>
-          <span className="px-3 py-1 bg-orange-100 text-orange-700 rounded-full text-sm">
-            👥 {job.applicationCount} applicants
-          </span>
+          {!job.isExternal && (
+            <span className="px-3 py-1 bg-orange-100 text-orange-700 rounded-full text-sm">
+              👥 {job.applicationCount} applicants
+            </span>
+          )}
+          {job.isExternal && (
+            <span className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-sm">
+              🔗 {job.source}
+            </span>
+          )}
         </div>
 
         {job.salaryRange && (
@@ -129,7 +163,36 @@ const JobDetails = () => {
           </div>
         )}
 
-        {user?.role === 'JOB_SEEKER' && (
+        {job.isExternal && job.externalData?.highlights && (
+          <div className="mb-6">
+            <h2 className="text-xl font-semibold mb-3">Highlights</h2>
+            <div className="space-y-2">
+              {job.externalData.highlights.Qualifications && (
+                <div>
+                  <h3 className="font-medium text-gray-700">Qualifications:</h3>
+                  <ul className="list-disc list-inside text-gray-600">
+                    {job.externalData.highlights.Qualifications.slice(0, 5).map((item, i) => (
+                      <li key={i}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {job.externalData.highlights.Responsibilities && (
+                <div>
+                  <h3 className="font-medium text-gray-700">Responsibilities:</h3>
+                  <ul className="list-disc list-inside text-gray-600">
+                    {job.externalData.highlights.Responsibilities.slice(0, 5).map((item, i) => (
+                      <li key={i}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Internal Job Application */}
+        {!job.isExternal && user?.role === 'JOB_SEEKER' && (
           <div className="border-t pt-6 mt-6">
             <h2 className="text-xl font-semibold mb-4">Apply for this position</h2>
             
@@ -169,7 +232,25 @@ const JobDetails = () => {
           </div>
         )}
 
-        {!isAuthenticated && (
+        {/* External Job Application */}
+        {job.isExternal && (
+          <div className="border-t pt-6 mt-6">
+            <div className="bg-purple-50 border border-purple-200 rounded-lg p-6">
+              <h2 className="text-xl font-semibold mb-3">Apply for this job</h2>
+              <p className="text-gray-700 mb-4">
+                This is an external job posting. Click the button below to apply directly on the company's website.
+              </p>
+              <button
+                onClick={handleExternalApply}
+                className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium"
+              >
+                Apply on Company Site →
+              </button>
+            </div>
+          </div>
+        )}
+
+        {!job.isExternal && !isAuthenticated && (
           <div className="border-t pt-6 mt-6 text-center">
             <p className="text-gray-600 mb-4">Please login to apply for this job</p>
             <button
